@@ -12,13 +12,18 @@
 <body class="bg-gray-100 p-6">
   <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
     
-    <!-- Header with Live Sync Indicator -->
-    <div class="flex justify-between items-center border-b pb-4">
+    <!-- Header with Live Sync & Reset Button -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
       <div>
         <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
         <p class="text-xs text-gray-500">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
       </div>
-      <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1 rounded">Kumokonekta...</span>
+      <div class="flex items-center gap-2">
+        <button onclick="resetAllRecords()" class="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded hover:bg-red-100 transition">
+          🗑️ I-reset ang Records
+        </button>
+        <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
+      </div>
     </div>
 
     <!-- Upload & OCR Section -->
@@ -94,24 +99,22 @@
       appId: "YOUR_APP_ID"
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
     const WEEKLY_RATE = 135;
-    const START_DATE = new Date("2026-08-30"); // Aug 30 - Sept 5 Week 1
+    const START_DATE = new Date("2026-08-30");
     let weeksData = [];
 
-    // Dynamic Week Generator batay sa World Date ngayon
     function generateDynamicWeeks() {
       let list = [];
       let currentDate = new Date(START_DATE);
-      let now = new Date(); // World Date and Time ngayon
+      let now = new Date();
       let weekNum = 1;
 
       while (true) {
         let endDate = new Date(currentDate);
-        endDate.setDate(endDate.getDate() + 6); // 7-day span
+        endDate.setDate(endDate.getDate() + 6);
 
         list.push({
           weekNum: weekNum,
@@ -126,8 +129,6 @@
         let nextDate = new Date(currentDate);
         nextDate.setDate(nextDate.getDate() + 7);
 
-        // Kung ang simula ng susunod na linggo ay lumampas na sa kasalukuyang petsa (now),
-        // itigil muna ang paggawa ng susunod na linggo para hindi pa lumitaw ang future weeks.
         if (nextDate > now) {
           break;
         }
@@ -142,7 +143,6 @@
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    // Real-time Centralized Listener kasama ang Dynamic Date Checking
     const docRef = doc(db, "rent_tracker", "master_records");
 
     onSnapshot(docRef, (docSnap) => {
@@ -152,7 +152,6 @@
       if (docSnap.exists()) {
         let savedWeeks = docSnap.data().weeks;
         
-        // I-merge ang lumang records sa mga bagong bukas na linggo base sa petsa
         currentDynamicWeeks.forEach(dynW => {
           let found = savedWeeks.find(s => s.weekNum === dynW.weekNum);
           if (found) {
@@ -163,7 +162,6 @@
         });
         weeksData = currentDynamicWeeks;
         
-        // I-update sa Firebase kung may bagong linggong nag-unlock
         if (savedWeeks.length < weeksData.length) {
           saveToFirebase(weeksData);
         }
@@ -174,12 +172,12 @@
 
       renderTable();
       syncStatus.innerText = "Live Synced";
-      syncStatus.className = "text-xs bg-green-100 text-green-800 font-semibold px-2.5 py-1 rounded";
+      syncStatus.className = "text-xs bg-green-100 text-green-800 font-semibold px-2.5 py-1.5 rounded";
     }, (error) => {
       console.error("Firestore Error:", error);
       const syncStatus = document.getElementById('syncStatus');
-      syncStatus.innerText = "Sync Error (Check Config)";
-      syncStatus.className = "text-xs bg-red-100 text-red-800 font-semibold px-2.5 py-1 rounded";
+      syncStatus.innerText = "Sync Error";
+      syncStatus.className = "text-xs bg-red-100 text-red-800 font-semibold px-2.5 py-1.5 rounded";
     });
 
     async function saveToFirebase(data) {
@@ -190,7 +188,15 @@
       }
     }
 
-    // Payment Distribution Logic
+    // Reset / Clear All Records Function
+    window.resetAllRecords = async function() {
+      if (confirm("Sigurado ka bang gusto mong i-reset ang lahat ng records at bayad? Babalik sa zero ang lahat.")) {
+        let freshWeeks = generateDynamicWeeks();
+        await saveToFirebase(freshWeeks);
+        alert("Na-reset na ang mga records.");
+      }
+    }
+
     window.processPayment = async function() {
       const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
       const online = parseFloat(document.getElementById('onlineAmount').value) || 0;
@@ -225,14 +231,12 @@
 
       await saveToFirebase(weeksData);
 
-      // Reset Input Fields
       document.getElementById('cashAmount').value = 0;
       document.getElementById('onlineAmount').value = 0;
       document.getElementById('refNum').value = '';
       document.getElementById('receiptDateInput').value = '';
     }
 
-    // UI Table Renderer
     function renderTable() {
       const tbody = document.getElementById('scheduleBody');
       tbody.innerHTML = '';
@@ -259,20 +263,17 @@
       });
     }
 
-    // ACCURATE OCR PARSER (Amount, Ref Number, at Petsa/Oras mula Resibo)
     document.getElementById('receiptInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const status = document.getElementById('ocrStatus');
-      status.innerText = "Binabasa ang resibo (Amount, Ref, Petsa)... Paki-hintay.";
+      status.innerText = "Binabasa ang resibo... Paki-hintay.";
 
       Tesseract.recognize(file, 'eng').then(({ data: { text } }) => {
         status.innerText = "Natapos ang pag-scan!";
 
         let amountVal = 0;
-        
-        // 1. Basahin ang Amount ($540.00)
         const amountRegex = /Amount[\s\n]*\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
         const matchAmount = text.match(amountRegex);
 
@@ -280,19 +281,13 @@
           amountVal = parseFloat(matchAmount[1].replace(/,/g, ''));
         } else {
           const fallbackMatch = text.match(/\$(\d{2,5}(?:\.\d{2})?)/);
-          if (fallbackMatch) {
-            amountVal = parseFloat(fallbackMatch[1]);
-          }
+          if (fallbackMatch) amountVal = parseFloat(fallbackMatch[1]);
         }
 
-        // 2. Basahin ang Reference Number
         let refVal = "";
         const refMatch = text.match(/(reference|ref)[\s\n:]*([A-Za-z0-9\s]+)/i);
-        if (refMatch && refMatch[2]) {
-          refVal = refMatch[2].split('\n')[0].trim();
-        }
+        if (refMatch && refMatch[2]) refVal = refMatch[2].split('\n')[0].trim();
 
-        // 3. Basahin ang Petsa mula sa resibo (hal. Sunday, 27 Sep 2026)
         let dateVal = "";
         const dateMatch = text.match(/(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}/i);
         if (dateMatch) {
@@ -302,22 +297,13 @@
           if (fallbackDate) dateVal = fallbackDate[0];
         }
 
-        // Auto-fill form fields
-        if (amountVal > 0) {
-          document.getElementById('onlineAmount').value = amountVal;
-        }
-        if (refVal) {
-          document.getElementById('refNum').value = refVal;
-        }
-        if (dateVal) {
-          document.getElementById('receiptDateInput').value = dateVal;
-        }
+        if (amountVal > 0) document.getElementById('onlineAmount').value = amountVal;
+        if (refVal) document.getElementById('refNum').value = refVal;
+        if (dateVal) document.getElementById('receiptDateInput').value = dateVal;
 
         status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal} | Petsa: ${dateVal || 'N/A'}`;
-
       }).catch(err => {
         status.innerText = "❌ Error sa pag-read ng resibo.";
-        console.error(err);
       });
     });
   </script>
