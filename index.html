@@ -336,7 +336,7 @@
               <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
               <td class="p-3 text-xs text-gray-500">
                 ${w.payments && w.payments.length > 0 
-                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.type}:$${p.amount} (Ref:${p.ref})</span>`).join('<br>') 
+                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
                   : '<span class="text-gray-400 italic">No payments yet</span>'}
               </td>
             </tr>
@@ -381,4 +381,14 @@
         }
 
         if (amountVal > 0) document.getElementById('onlineAmount').value = amountVal;
-        if (refVal)
+        if (refVal) document.getElementById('refNum').value = refVal;
+        if (dateVal) document.getElementById('receiptDateInput').value = dateVal;
+
+        status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal} | Petsa: ${dateVal || 'N/A'}`;
+      }).catch(err => {
+        status.innerText = "❌ Error sa pag-read ng resibo.";
+      });
+    });
+  </script>
+</body>
+</html>
