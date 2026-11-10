@@ -90,7 +90,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // ✅ Naka-lagay na ang iyong Firebase Config mula sa screenshot
+    // Firebase Config mula sa iyong Maynilad Calculator Project[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
     const firebaseConfig = {
       apiKey: "AIzaSyD8kZ7TJ8_8h2kZ02MeXU4LHTofzMzy23g",
       authDomain: "maynilad-calculator.firebaseapp.com",
@@ -201,6 +201,8 @@
       if (totalPayment <= 0) return alert("Maglagay ng halaga ng bayad.");
 
       let remainingPayment = totalPayment;
+      let remainingCash = cash;
+      let remainingOnline = online;
 
       for (let w of weeksData) {
         if (remainingPayment <= 0) break;
@@ -213,10 +215,21 @@
 
           w.status = w.paidAmount >= w.targetAmount ? 'PAID' : 'PARTIAL';
 
+          // Kalkulahin kung magkano ang napunta sa Cash at Online para sa linggong ito
+          let applyCash = Math.min(remainingCash, toApply);
+          remainingCash -= applyCash;
+          let applyOnline = toApply - applyCash;
+
           if (!w.payments) w.payments = [];
+          
+          // I-record nang hiwalay o magkasama nang may tamang label
+          let paymentDesc = [];
+          if (applyCash > 0) paymentDesc.push(`Cash: $${applyCash}`);
+          if (applyOnline > 0) paymentDesc.push(`Online: $${applyOnline}`);
+
           w.payments.push({
             amount: toApply,
-            type: cash > 0 && online > 0 ? 'Hybrid' : (cash > 0 ? 'Cash' : 'Online'),
+            desc: paymentDesc.join(' | '),
             ref: ref,
             receiptDate: receiptDate
           });
@@ -265,7 +278,7 @@
       } else {
         w.payments = [{
           amount: newPaid,
-          type: 'Manual Edit',
+          desc: `Manual Edit: $${newPaid}`,
           ref: newNote || 'Edited record',
           receiptDate: new Date().toLocaleDateString()
         }];
@@ -331,7 +344,7 @@
               <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
               <td class="p-3 text-xs text-gray-500">
                 ${w.payments && w.payments.length > 0 
-                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
+                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.desc} (Ref: ${p.ref})</span>`).join('<br>') 
                   : '<span class="text-gray-400 italic">No payments yet</span>'}
               </td>
             </tr>
