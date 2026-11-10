@@ -4,64 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Centralized Rent & Payment Tracker</title>
-  <!-- Tailwind CSS -->
+  <!-- Tailwind CSS para sa Styling -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Tesseract.js (OCR) -->
+  <!-- Tesseract.js para sa Receipt OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body class="bg-gray-100 p-6">
   <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
     
+    <!-- Header with Live Sync Indicator -->
     <div class="flex justify-between items-center border-b pb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
+        <p class="text-xs text-gray-500">Starts Aug 30 - Weekly rate: $135</p>
+      </div>
       <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1 rounded">Kumokonekta...</span>
     </div>
 
     <!-- Upload & OCR Section -->
-    <div class="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center">
-      <h2 class="text-lg font-semibold mb-2">Scan QR / Upload Resibo</h2>
-      <input type="file" id="receiptInput" accept="image/*" class="mb-3">
-      <div id="ocrStatus" class="text-sm text-blue-600 font-medium"></div>
+    <div class="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center bg-gray-50">
+      <h2 class="text-lg font-semibold mb-1 text-gray-700">Scan QR / Upload Resibo</h2>
+      <p class="text-xs text-gray-500 mb-3">Awtomatikong babasahin ang Amount at Reference Number mula sa screenshot</p>
+      <input type="file" id="receiptInput" accept="image/*" class="block mx-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+      <div id="ocrStatus" class="text-sm text-blue-600 font-medium mt-3"></div>
     </div>
 
-    <!-- Payment Form -->
-    <div class="bg-gray-50 p-4 rounded-lg space-y-3">
-      <h3 class="font-semibold text-gray-700">Mag-log ng Bagong Bayad</h3>
+    <!-- Payment Entry Form -->
+    <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-lg space-y-3">
+      <h3 class="font-semibold text-gray-700">Mag-log ng Bayad</h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
-          <label class="block text-xs font-medium text-gray-500">Ref Number</label>
-          <input type="text" id="refNum" class="w-full border p-2 rounded" placeholder="e.g. TXN123456">
+          <label class="block text-xs font-medium text-gray-500 mb-1">Ref Number / Note</label>
+          <input type="text" id="refNum" class="w-full border p-2 rounded bg-white text-sm" placeholder="e.g. room rent">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-500">Cash Amount ($)</label>
-          <input type="number" id="cashAmount" value="0" class="w-full border p-2 rounded">
+          <label class="block text-xs font-medium text-gray-500 mb-1">Cash Amount ($)</label>
+          <input type="number" id="cashAmount" value="0" min="0" step="any" class="w-full border p-2 rounded bg-white text-sm">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-500">Online/Transfer ($)</label>
-          <input type="number" id="onlineAmount" value="0" class="w-full border p-2 rounded">
+          <label class="block text-xs font-medium text-gray-500 mb-1">Online / Transfer ($)</label>
+          <input type="number" id="onlineAmount" value="0" min="0" step="any" class="w-full border p-2 rounded bg-white text-sm">
         </div>
       </div>
-      <button id="btnSubmit" onclick="processPayment()" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700">
+      <button id="btnSubmit" onclick="processPayment()" class="w-full bg-blue-600 text-white py-2.5 rounded font-semibold hover:bg-blue-700 transition">
         I-save at I-sync ang Bayad
       </button>
     </div>
 
-    <!-- Schedule Table -->
+    <!-- Schedule & Real-time Records Table -->
     <div>
-      <h2 class="text-xl font-bold mb-3">Weekly Schedule & Live Status</h2>
-      <div class="overflow-x-auto">
+      <h2 class="text-xl font-bold mb-3 text-gray-800">Weekly Schedule & Live Status</h2>
+      <div class="overflow-x-auto rounded-lg border border-gray-200">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-gray-200 text-gray-700 text-sm">
+            <tr class="bg-gray-200 text-gray-700 text-xs uppercase tracking-wider">
               <th class="p-3">Week</th>
               <th class="p-3">Petsa (Date Range)</th>
               <th class="p-3">Kailangan ($135)</th>
               <th class="p-3">Naibayad</th>
               <th class="p-3">Status</th>
-              <th class="p-3">Details</th>
+              <th class="p-3">Details / History</th>
             </tr>
           </thead>
-          <tbody id="scheduleBody">
+          <tbody id="scheduleBody" class="divide-y divide-gray-200 bg-white">
             <!-- Dynamic rows will render here -->
           </tbody>
         </table>
@@ -70,12 +75,12 @@
 
   </div>
 
-  <!-- Firebase SDKs -->
+  <!-- Firebase JavaScript SDK (Modular v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // ⚠️ PALITAN ITO NG FIREBASE CONFIG CREDENTIALS MO
+    // ⚠️ PALITAN ITO NG IYONG FIREBASE CONFIG KEYS
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -85,20 +90,21 @@
       appId: "YOUR_APP_ID"
     };
 
+    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
     const WEEKLY_RATE = 135;
-    const START_DATE = new Date("2026-08-30"); // Aug 30 Start Date
+    const START_DATE = new Date("2026-08-30"); // Aug 30 - Sept 5 Week 1
     let weeksData = [];
 
-    // Initialize 12 Weeks template
+    // Helper: Generate Default 12 Weeks Table
     function generateDefaultWeeks() {
       let currentDate = new Date(START_DATE);
       let list = [];
       for (let i = 1; i <= 12; i++) {
         let endDate = new Date(currentDate);
-        endDate.setDate(endDate.getDate() + 6);
+        endDate.setDate(endDate.getDate() + 6); // 7-day span
         list.push({
           weekNum: i,
           startDate: formatDate(currentDate),
@@ -117,7 +123,7 @@
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    // Real-time Firestore Listener (Kahit sinong mag-open ng link, makikita ang latest state)
+    // Real-time Centralized Listener
     const docRef = doc(db, "rent_tracker", "master_records");
 
     onSnapshot(docRef, (docSnap) => {
@@ -133,22 +139,24 @@
       syncStatus.className = "text-xs bg-green-100 text-green-800 font-semibold px-2.5 py-1 rounded";
     }, (error) => {
       console.error("Firestore Error:", error);
-      document.getElementById('syncStatus').innerText = "Sync Error";
+      const syncStatus = document.getElementById('syncStatus');
+      syncStatus.innerText = "Sync Error (Check Config)";
+      syncStatus.className = "text-xs bg-red-100 text-red-800 font-semibold px-2.5 py-1 rounded";
     });
 
     async function saveToFirebase(data) {
       try {
         await setDoc(doc(db, "rent_tracker", "master_records"), { weeks: data });
       } catch (e) {
-        alert("Nagka-error sa pag-save sa Cloud database.");
+        alert("Error saving data to Firebase.");
       }
     }
 
-    // Payment Processing Logic
+    // Payment Distribution Logic
     window.processPayment = async function() {
       const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
       const online = parseFloat(document.getElementById('onlineAmount').value) || 0;
-      const ref = document.getElementById('refNum').value || 'N/A';
+      const ref = document.getElementById('refNum').value.trim() || 'N/A';
       
       let totalPayment = cash + online;
       if (totalPayment <= 0) return alert("Maglagay ng halaga ng bayad.");
@@ -166,22 +174,25 @@
 
           w.status = w.paidAmount >= w.targetAmount ? 'PAID' : 'PARTIAL';
 
+          if (!w.payments) w.payments = [];
           w.payments.push({
             amount: toApply,
             type: cash > 0 && online > 0 ? 'Hybrid' : (cash > 0 ? 'Cash' : 'Online'),
             ref: ref,
-            timestamp: new Date().toLocaleDateString()
+            date: new Date().toLocaleDateString()
           });
         }
       }
 
       await saveToFirebase(weeksData);
 
+      // Reset Input Fields
       document.getElementById('cashAmount').value = 0;
       document.getElementById('onlineAmount').value = 0;
       document.getElementById('refNum').value = '';
     }
 
+    // UI Table Renderer
     function renderTable() {
       const tbody = document.getElementById('scheduleBody');
       tbody.innerHTML = '';
@@ -191,20 +202,24 @@
                          w.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
 
         let row = `
-          <tr class="border-b text-sm">
-            <td class="p-3 font-semibold">Week ${w.weekNum}</td>
-            <td class="p-3">${w.startDate} - ${w.endDate}</td>
-            <td class="p-3">$${w.targetAmount}</td>
-            <td class="p-3 font-medium text-blue-600">$${w.paidAmount}</td>
-            <td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
-            <td class="p-3 text-xs text-gray-500">${w.payments ? w.payments.map(p => `${p.type}: $${p.amount} (Ref: ${p.ref})`).join('<br>') : ''}</td>
+          <tr class="border-b text-sm hover:bg-gray-50">
+            <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
+            <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
+            <td class="p-3 text-gray-700">$${w.targetAmount}</td>
+            <td class="p-3 font-bold text-blue-600">$${w.paidAmount}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
+            <td class="p-3 text-xs text-gray-500">
+              ${w.payments && w.payments.length > 0 
+                ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border">${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
+                : '<span class="text-gray-400 italic">No payments yet</span>'}
+            </td>
           </tr>
         `;
         tbody.innerHTML += row;
       });
     }
 
-    // OCR Receipt Scanner
+    // ACCURATE OCR PARSER FOR BANK RECEIPTS
     document.getElementById('receiptInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -214,14 +229,45 @@
 
       Tesseract.recognize(file, 'eng').then(({ data: { text } }) => {
         status.innerText = "Natapos ang pag-scan!";
-        
-        const amountMatch = text.match(/\$?(\d+(\.\d{1,2})?)/);
-        const refMatch = text.match(/(Ref|TXN|Reference|No)[\s#:]*([A-Za-z0-9]+)/i);
 
-        if (amountMatch) document.getElementById('onlineAmount').value = amountMatch[1];
-        if (refMatch) document.getElementById('refNum').value = refMatch[2];
+        let amountVal = 0;
+        
+        // 1. Tiyak na babasahin ang katapat/ibaba ng label na "Amount" (Target: $540.00)
+        const amountRegex = /Amount[\s\n]*\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
+        const matchAmount = text.match(amountRegex);
+
+        if (matchAmount && matchAmount[1]) {
+          amountVal = parseFloat(matchAmount[1].replace(/,/g, ''));
+        } else {
+          // 2. Fallback: Maghanap ng numerong may dollar sign ($540.00)
+          const fallbackMatch = text.match(/\$(\d{2,5}(?:\.\d{2})?)/);
+          if (fallbackMatch) {
+            amountVal = parseFloat(fallbackMatch[1]);
+          }
+        }
+
+        // 3. Hanapin ang reference (Your reference / Their reference)
+        let refVal = "";
+        const refMatch = text.match(/(reference|ref)[\s\n:]*([A-Za-z0-9\s]+)/i);
+        if (refMatch && refMatch[2]) {
+          refVal = refMatch[2].split('\n')[0].trim();
+        }
+
+        // Auto-fill form fields
+        if (amountVal > 0) {
+          document.getElementById('onlineAmount').value = amountVal;
+          status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal}`;
+        } else {
+          status.innerText = "⚠️ Hindi natukoy nang matino ang Amount. Paki-type manual.";
+        }
+
+        if (refVal) {
+          document.getElementById('refNum').value = refVal;
+        }
+
       }).catch(err => {
-        status.innerText = "Error sa pag-read ng resibo.";
+        status.innerText = "❌ Error sa pag-read ng resibo.";
+        console.error(err);
       });
     });
   </script>
