@@ -16,7 +16,7 @@
     <div class="flex justify-between items-center border-b pb-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
-        <p class="text-xs text-gray-500">Starts Aug 30 - Weekly rate: $135</p>
+        <p class="text-xs text-gray-500">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
       </div>
       <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1 rounded">Kumokonekta...</span>
     </div>
@@ -24,7 +24,7 @@
     <!-- Upload & OCR Section -->
     <div class="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center bg-gray-50">
       <h2 class="text-lg font-semibold mb-1 text-gray-700">Scan QR / Upload Resibo</h2>
-      <p class="text-xs text-gray-500 mb-3">Awtomatikong babasahin ang Amount at Reference Number mula sa screenshot</p>
+      <p class="text-xs text-gray-500 mb-3">Awtomatikong babasahin ang Amount, Reference Number, at Petsa/Oras mula sa resibo</p>
       <input type="file" id="receiptInput" accept="image/*" class="block mx-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
       <div id="ocrStatus" class="text-sm text-blue-600 font-medium mt-3"></div>
     </div>
@@ -32,10 +32,14 @@
     <!-- Payment Entry Form -->
     <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-lg space-y-3">
       <h3 class="font-semibold text-gray-700">Mag-log ng Bayad</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1">Ref Number / Note</label>
           <input type="text" id="refNum" class="w-full border p-2 rounded bg-white text-sm" placeholder="e.g. room rent">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Petsa ng Resibo (Receipt Date)</label>
+          <input type="text" id="receiptDateInput" class="w-full border p-2 rounded bg-white text-sm" placeholder="e.g. 27 Sep 2026">
         </div>
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1">Cash Amount ($)</label>
@@ -63,7 +67,7 @@
               <th class="p-3">Kailangan ($135)</th>
               <th class="p-3">Naibayad</th>
               <th class="p-3">Status</th>
-              <th class="p-3">Details / History</th>
+              <th class="p-3">Details / History (May Resibo Date)</th>
             </tr>
           </thead>
           <tbody id="scheduleBody" class="divide-y divide-gray-200 bg-white">
@@ -98,15 +102,19 @@
     const START_DATE = new Date("2026-08-30"); // Aug 30 - Sept 5 Week 1
     let weeksData = [];
 
-    // Helper: Generate Default 12 Weeks Table
-    function generateDefaultWeeks() {
-      let currentDate = new Date(START_DATE);
+    // Dynamic Week Generator batay sa World Date ngayon
+    function generateDynamicWeeks() {
       let list = [];
-      for (let i = 1; i <= 12; i++) {
+      let currentDate = new Date(START_DATE);
+      let now = new Date(); // World Date and Time ngayon
+      let weekNum = 1;
+
+      while (true) {
         let endDate = new Date(currentDate);
         endDate.setDate(endDate.getDate() + 6); // 7-day span
+
         list.push({
-          weekNum: i,
+          weekNum: weekNum,
           startDate: formatDate(currentDate),
           endDate: formatDate(endDate),
           targetAmount: WEEKLY_RATE,
@@ -114,26 +122,56 @@
           status: 'UNPAID',
           payments: []
         });
-        currentDate.setDate(currentDate.getDate() + 7);
+
+        let nextDate = new Date(currentDate);
+        nextDate.setDate(nextDate.getDate() + 7);
+
+        // Kung ang simula ng susunod na linggo ay lumampas na sa kasalukuyang petsa (now),
+        // itigil muna ang paggawa ng susunod na linggo para hindi pa lumitaw ang future weeks.
+        if (nextDate > now) {
+          break;
+        }
+
+        currentDate = nextDate;
+        weekNum++;
       }
       return list;
     }
 
     function formatDate(d) {
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    // Real-time Centralized Listener
+    // Real-time Centralized Listener kasama ang Dynamic Date Checking
     const docRef = doc(db, "rent_tracker", "master_records");
 
     onSnapshot(docRef, (docSnap) => {
       const syncStatus = document.getElementById('syncStatus');
+      let currentDynamicWeeks = generateDynamicWeeks();
+
       if (docSnap.exists()) {
-        weeksData = docSnap.data().weeks;
+        let savedWeeks = docSnap.data().weeks;
+        
+        // I-merge ang lumang records sa mga bagong bukas na linggo base sa petsa
+        currentDynamicWeeks.forEach(dynW => {
+          let found = savedWeeks.find(s => s.weekNum === dynW.weekNum);
+          if (found) {
+            dynW.paidAmount = found.paidAmount;
+            dynW.status = found.status;
+            dynW.payments = found.payments || [];
+          }
+        });
+        weeksData = currentDynamicWeeks;
+        
+        // I-update sa Firebase kung may bagong linggong nag-unlock
+        if (savedWeeks.length < weeksData.length) {
+          saveToFirebase(weeksData);
+        }
       } else {
-        weeksData = generateDefaultWeeks();
+        weeksData = currentDynamicWeeks;
         saveToFirebase(weeksData);
       }
+
       renderTable();
       syncStatus.innerText = "Live Synced";
       syncStatus.className = "text-xs bg-green-100 text-green-800 font-semibold px-2.5 py-1 rounded";
@@ -157,6 +195,7 @@
       const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
       const online = parseFloat(document.getElementById('onlineAmount').value) || 0;
       const ref = document.getElementById('refNum').value.trim() || 'N/A';
+      const receiptDate = document.getElementById('receiptDateInput').value.trim() || new Date().toLocaleString();
       
       let totalPayment = cash + online;
       if (totalPayment <= 0) return alert("Maglagay ng halaga ng bayad.");
@@ -179,7 +218,7 @@
             amount: toApply,
             type: cash > 0 && online > 0 ? 'Hybrid' : (cash > 0 ? 'Cash' : 'Online'),
             ref: ref,
-            date: new Date().toLocaleDateString()
+            receiptDate: receiptDate
           });
         }
       }
@@ -190,6 +229,7 @@
       document.getElementById('cashAmount').value = 0;
       document.getElementById('onlineAmount').value = 0;
       document.getElementById('refNum').value = '';
+      document.getElementById('receiptDateInput').value = '';
     }
 
     // UI Table Renderer
@@ -210,7 +250,7 @@
             <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
             <td class="p-3 text-xs text-gray-500">
               ${w.payments && w.payments.length > 0 
-                ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border">${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
+                ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate}</b> | ${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
                 : '<span class="text-gray-400 italic">No payments yet</span>'}
             </td>
           </tr>
@@ -219,51 +259,61 @@
       });
     }
 
-    // ACCURATE OCR PARSER FOR BANK RECEIPTS
+    // ACCURATE OCR PARSER (Amount, Ref Number, at Petsa/Oras mula Resibo)
     document.getElementById('receiptInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const status = document.getElementById('ocrStatus');
-      status.innerText = "Binabasa ang resibo... Paki-hintay.";
+      status.innerText = "Binabasa ang resibo (Amount, Ref, Petsa)... Paki-hintay.";
 
       Tesseract.recognize(file, 'eng').then(({ data: { text } }) => {
         status.innerText = "Natapos ang pag-scan!";
 
         let amountVal = 0;
         
-        // 1. Tiyak na babasahin ang katapat/ibaba ng label na "Amount" (Target: $540.00)
+        // 1. Basahin ang Amount ($540.00)
         const amountRegex = /Amount[\s\n]*\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
         const matchAmount = text.match(amountRegex);
 
         if (matchAmount && matchAmount[1]) {
           amountVal = parseFloat(matchAmount[1].replace(/,/g, ''));
         } else {
-          // 2. Fallback: Maghanap ng numerong may dollar sign ($540.00)
           const fallbackMatch = text.match(/\$(\d{2,5}(?:\.\d{2})?)/);
           if (fallbackMatch) {
             amountVal = parseFloat(fallbackMatch[1]);
           }
         }
 
-        // 3. Hanapin ang reference (Your reference / Their reference)
+        // 2. Basahin ang Reference Number
         let refVal = "";
         const refMatch = text.match(/(reference|ref)[\s\n:]*([A-Za-z0-9\s]+)/i);
         if (refMatch && refMatch[2]) {
           refVal = refMatch[2].split('\n')[0].trim();
         }
 
+        // 3. Basahin ang Petsa mula sa resibo (hal. Sunday, 27 Sep 2026)
+        let dateVal = "";
+        const dateMatch = text.match(/(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}/i);
+        if (dateMatch) {
+          dateVal = dateMatch[0];
+        } else {
+          const fallbackDate = text.match(/\b\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i);
+          if (fallbackDate) dateVal = fallbackDate[0];
+        }
+
         // Auto-fill form fields
         if (amountVal > 0) {
           document.getElementById('onlineAmount').value = amountVal;
-          status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal}`;
-        } else {
-          status.innerText = "⚠️ Hindi natukoy nang matino ang Amount. Paki-type manual.";
         }
-
         if (refVal) {
           document.getElementById('refNum').value = refVal;
         }
+        if (dateVal) {
+          document.getElementById('receiptDateInput').value = dateVal;
+        }
+
+        status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal} | Petsa: ${dateVal || 'N/A'}`;
 
       }).catch(err => {
         status.innerText = "❌ Error sa pag-read ng resibo.";
