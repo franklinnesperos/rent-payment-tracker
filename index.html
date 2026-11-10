@@ -12,13 +12,18 @@
 <body class="bg-gray-100 p-6">
   <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
     
-    <!-- Header with Live Sync Indicator -->
+    <!-- Header with Live Sync Indicator & Global Edit Toggle -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
       <div>
         <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
         <p class="text-xs text-gray-500">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
       </div>
-      <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
+      <div class="flex items-center gap-2">
+        <button id="globalEditBtn" onclick="toggleGlobalEditMode()" class="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition">
+          ✏️ I-edit Mode: OFF
+        </button>
+        <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
+      </div>
     </div>
 
     <!-- Upload & OCR Section -->
@@ -62,13 +67,13 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-gray-200 text-gray-700 text-xs uppercase tracking-wider">
+              <th id="editHeader" class="p-3 hidden text-center">Piliin</th>
               <th class="p-3">Week</th>
               <th class="p-3">Petsa (Date Range)</th>
               <th class="p-3">Kailangan ($135)</th>
               <th class="p-3">Naibayad</th>
               <th class="p-3">Status</th>
               <th class="p-3">Details / History</th>
-              <th class="p-3 text-center">Aksyon</th>
             </tr>
           </thead>
           <tbody id="scheduleBody" class="divide-y divide-gray-200 bg-white">
@@ -101,7 +106,8 @@
     const WEEKLY_RATE = 135;
     const START_DATE = new Date("2026-08-30");
     let weeksData = [];
-    let editingWeekNum = null; // Track kung anong week ang kasalukuyang ini-edit
+    let isEditMode = false;         // Global toggle state para sa Edit button sa taas
+    let selectedEditWeek = null;    // Kung anong week ang napili sa radio button
 
     function generateDynamicWeeks() {
       let list = [];
@@ -225,14 +231,29 @@
       document.getElementById('receiptDateInput').value = '';
     }
 
-    // Toggle Edit Mode para sa isang partikular na week
-    window.toggleEdit = function(weekNum) {
-      editingWeekNum = (editingWeekNum === weekNum) ? null : weekNum;
+    // Toggle para sa Edit Mode sa taas
+    window.toggleGlobalEditMode = function() {
+      isEditMode = !isEditMode;
+      selectedEditWeek = null;
+      let btn = document.getElementById('globalEditBtn');
+      if (isEditMode) {
+        btn.innerText = "✏️ I-edit Mode: ON";
+        btn.className = "bg-amber-600 text-white border border-amber-700 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-700 transition";
+      } else {
+        btn.innerText = "✏️ I-edit Mode: OFF";
+        btn.className = "bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition";
+      }
       renderTable();
     }
 
-    // I-save ang in-edit na data ng isang week
-    window.saveEdit = async function(weekNum) {
+    // Kapag pinindot ang maliit na bilog (radio button)
+    window.selectWeekForEdit = function(weekNum) {
+      selectedEditWeek = weekNum;
+      renderTable();
+    }
+
+    // I-save ang in-edit na data at i-reset/balikan ang napili
+    window.saveSelectedEdit = async function(weekNum) {
       let w = weeksData.find(item => item.weekNum === weekNum);
       if (!w) return;
 
@@ -242,7 +263,6 @@
       w.paidAmount = newPaid;
       w.status = newPaid >= w.targetAmount ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
       
-      // I-update o i-reset ang details/history batay sa inedit
       if (newPaid === 0) {
         w.payments = [];
       } else {
@@ -254,45 +274,61 @@
         }];
       }
 
-      editingWeekNum = null;
+      selectedEditWeek = null;
       await saveToFirebase(weeksData);
     }
 
     function renderTable() {
       const tbody = document.getElementById('scheduleBody');
+      const editHeader = document.getElementById('editHeader');
       tbody.innerHTML = '';
 
+      if (isEditMode) {
+        editHeader.classList.remove('hidden');
+      } else {
+        editHeader.classList.add('hidden');
+      }
+
       weeksData.forEach(w => {
-        let isEditing = (editingWeekNum === w.weekNum);
+        let isSelected = (isEditMode && selectedEditWeek === w.weekNum);
         let badgeColor = w.status === 'PAID' ? 'bg-green-100 text-green-800' :
                          w.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
 
         let row = '';
 
-        if (isEditing) {
-          // Kung kasalukuyang ini-edit, gawing input fields
+        if (isSelected) {
+          // Kung napili ang linggong ito gamit ang bilog, gawing editable
           row = `
             <tr class="border-b text-sm bg-blue-50/60">
+              <td class="p-3 text-center">
+                <input type="radio" name="weekEditRadio" checked onclick="selectWeekForEdit(${w.weekNum})" class="w-4 h-4 text-blue-600">
+              </td>
               <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
               <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
               <td class="p-3 text-gray-700">$${w.targetAmount}</td>
               <td class="p-3">
                 <input type="number" id="editPaid_${w.weekNum}" value="${w.paidAmount}" min="0" max="${w.targetAmount}" class="w-24 border p-1 rounded bg-white text-sm font-bold text-blue-600">
               </td>
-              <td class="p-3 text-xs italic text-gray-500">Auto-updates status</td>
+              <td class="p-3 text-xs italic text-gray-500">Auto-status</td>
               <td class="p-3">
-                <input type="text" id="editNote_${w.weekNum}" value="${w.payments && w.payments.length > 0 ? w.payments[0].ref : ''}" placeholder="Note / Ref" class="w-full border p-1 rounded bg-white text-xs">
-              </td>
-              <td class="p-3 text-center space-x-1">
-                <button onclick="saveEdit(${w.weekNum})" class="bg-green-600 text-white px-2.5 py-1 rounded text-xs font-semibold hover:bg-green-700">💾 I-save</button>
-                <button onclick="toggleEdit(${w.weekNum})" class="bg-gray-400 text-white px-2.5 py-1 rounded text-xs font-semibold hover:bg-gray-500">Kanselahin</button>
+                <div class="flex items-center gap-2">
+                  <input type="text" id="editNote_${w.weekNum}" value="${w.payments && w.payments.length > 0 ? w.payments[0].ref : ''}" placeholder="Note / Ref" class="w-full border p-1 rounded bg-white text-xs">
+                  <button onclick="saveSelectedEdit(${w.weekNum})" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 whitespace-nowrap">💾 I-save</button>
+                </div>
               </td>
             </tr>
           `;
         } else {
-          // Normal display view
+          // Normal o kaya ay may makikitang bilog kung naka-ON ang edit mode
+          let radioCol = isEditMode ? `
+            <td class="p-3 text-center">
+              <input type="radio" name="weekEditRadio" onclick="selectWeekForEdit(${w.weekNum})" class="w-4 h-4 text-blue-600 cursor-pointer">
+            </td>
+          ` : '';
+
           row = `
             <tr class="border-b text-sm hover:bg-gray-50">
+              ${radioCol}
               <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
               <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
               <td class="p-3 text-gray-700">$${w.targetAmount}</td>
@@ -300,11 +336,8 @@
               <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
               <td class="p-3 text-xs text-gray-500">
                 ${w.payments && w.payments.length > 0 
-                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
+                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.type}:$${p.amount} (Ref:${p.ref})</span>`).join('<br>') 
                   : '<span class="text-gray-400 italic">No payments yet</span>'}
-              </td>
-              <td class="p-3 text-center">
-                <button onclick="toggleEdit(${w.weekNum})" class="bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded text-xs font-semibold hover:bg-amber-200 transition">✏️ I-edit</button>
               </td>
             </tr>
           `;
@@ -348,14 +381,4 @@
         }
 
         if (amountVal > 0) document.getElementById('onlineAmount').value = amountVal;
-        if (refVal) document.getElementById('refNum').value = refVal;
-        if (dateVal) document.getElementById('receiptDateInput').value = dateVal;
-
-        status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal} | Petsa: ${dateVal || 'N/A'}`;
-      }).catch(err => {
-        status.innerText = "❌ Error sa pag-read ng resibo.";
-      });
-    });
-  </script>
-</body>
-</html>
+        if (refVal)
