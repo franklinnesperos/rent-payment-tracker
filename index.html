@@ -10,20 +10,15 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body class="bg-gray-100 p-6">
-  <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
+  <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
     
-    <!-- Header with Live Sync & Reset Button -->
+    <!-- Header with Live Sync Indicator -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
       <div>
         <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
         <p class="text-xs text-gray-500">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
       </div>
-      <div class="flex items-center gap-2">
-        <button onclick="resetAllRecords()" class="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded hover:bg-red-100 transition">
-          🗑️ I-reset ang Records
-        </button>
-        <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
-      </div>
+      <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
     </div>
 
     <!-- Upload & OCR Section -->
@@ -72,7 +67,8 @@
               <th class="p-3">Kailangan ($135)</th>
               <th class="p-3">Naibayad</th>
               <th class="p-3">Status</th>
-              <th class="p-3">Details / History (May Resibo Date)</th>
+              <th class="p-3">Details / History</th>
+              <th class="p-3 text-center">Aksyon</th>
             </tr>
           </thead>
           <tbody id="scheduleBody" class="divide-y divide-gray-200 bg-white">
@@ -105,6 +101,7 @@
     const WEEKLY_RATE = 135;
     const START_DATE = new Date("2026-08-30");
     let weeksData = [];
+    let editingWeekNum = null; // Track kung anong week ang kasalukuyang ini-edit
 
     function generateDynamicWeeks() {
       let list = [];
@@ -188,15 +185,6 @@
       }
     }
 
-    // Reset / Clear All Records Function
-    window.resetAllRecords = async function() {
-      if (confirm("Sigurado ka bang gusto mong i-reset ang lahat ng records at bayad? Babalik sa zero ang lahat.")) {
-        let freshWeeks = generateDynamicWeeks();
-        await saveToFirebase(freshWeeks);
-        alert("Na-reset na ang mga records.");
-      }
-    }
-
     window.processPayment = async function() {
       const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
       const online = parseFloat(document.getElementById('onlineAmount').value) || 0;
@@ -237,28 +225,90 @@
       document.getElementById('receiptDateInput').value = '';
     }
 
+    // Toggle Edit Mode para sa isang partikular na week
+    window.toggleEdit = function(weekNum) {
+      editingWeekNum = (editingWeekNum === weekNum) ? null : weekNum;
+      renderTable();
+    }
+
+    // I-save ang in-edit na data ng isang week
+    window.saveEdit = async function(weekNum) {
+      let w = weeksData.find(item => item.weekNum === weekNum);
+      if (!w) return;
+
+      const newPaid = parseFloat(document.getElementById(`editPaid_${weekNum}`).value) || 0;
+      const newNote = document.getElementById(`editNote_${weekNum}`).value.trim();
+
+      w.paidAmount = newPaid;
+      w.status = newPaid >= w.targetAmount ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
+      
+      // I-update o i-reset ang details/history batay sa inedit
+      if (newPaid === 0) {
+        w.payments = [];
+      } else {
+        w.payments = [{
+          amount: newPaid,
+          type: 'Manual Edit',
+          ref: newNote || 'Edited record',
+          receiptDate: new Date().toLocaleDateString()
+        }];
+      }
+
+      editingWeekNum = null;
+      await saveToFirebase(weeksData);
+    }
+
     function renderTable() {
       const tbody = document.getElementById('scheduleBody');
       tbody.innerHTML = '';
 
       weeksData.forEach(w => {
+        let isEditing = (editingWeekNum === w.weekNum);
         let badgeColor = w.status === 'PAID' ? 'bg-green-100 text-green-800' :
                          w.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
 
-        let row = `
-          <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
-            <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
-            <td class="p-3 text-gray-700">$${w.targetAmount}</td>
-            <td class="p-3 font-bold text-blue-600">$${w.paidAmount}</td>
-            <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
-            <td class="p-3 text-xs text-gray-500">
-              ${w.payments && w.payments.length > 0 
-                ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate}</b> | ${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
-                : '<span class="text-gray-400 italic">No payments yet</span>'}
-            </td>
-          </tr>
-        `;
+        let row = '';
+
+        if (isEditing) {
+          // Kung kasalukuyang ini-edit, gawing input fields
+          row = `
+            <tr class="border-b text-sm bg-blue-50/60">
+              <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
+              <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
+              <td class="p-3 text-gray-700">$${w.targetAmount}</td>
+              <td class="p-3">
+                <input type="number" id="editPaid_${w.weekNum}" value="${w.paidAmount}" min="0" max="${w.targetAmount}" class="w-24 border p-1 rounded bg-white text-sm font-bold text-blue-600">
+              </td>
+              <td class="p-3 text-xs italic text-gray-500">Auto-updates status</td>
+              <td class="p-3">
+                <input type="text" id="editNote_${w.weekNum}" value="${w.payments && w.payments.length > 0 ? w.payments[0].ref : ''}" placeholder="Note / Ref" class="w-full border p-1 rounded bg-white text-xs">
+              </td>
+              <td class="p-3 text-center space-x-1">
+                <button onclick="saveEdit(${w.weekNum})" class="bg-green-600 text-white px-2.5 py-1 rounded text-xs font-semibold hover:bg-green-700">💾 I-save</button>
+                <button onclick="toggleEdit(${w.weekNum})" class="bg-gray-400 text-white px-2.5 py-1 rounded text-xs font-semibold hover:bg-gray-500">Kanselahin</button>
+              </td>
+            </tr>
+          `;
+        } else {
+          // Normal display view
+          row = `
+            <tr class="border-b text-sm hover:bg-gray-50">
+              <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
+              <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
+              <td class="p-3 text-gray-700">$${w.targetAmount}</td>
+              <td class="p-3 font-bold text-blue-600">$${w.paidAmount}</td>
+              <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
+              <td class="p-3 text-xs text-gray-500">
+                ${w.payments && w.payments.length > 0 
+                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.type}: $${p.amount} (Ref: ${p.ref})</span>`).join('<br>') 
+                  : '<span class="text-gray-400 italic">No payments yet</span>'}
+              </td>
+              <td class="p-3 text-center">
+                <button onclick="toggleEdit(${w.weekNum})" class="bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded text-xs font-semibold hover:bg-amber-200 transition">✏️ I-edit</button>
+              </td>
+            </tr>
+          `;
+        }
         tbody.innerHTML += row;
       });
     }
