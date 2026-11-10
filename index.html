@@ -90,14 +90,14 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // ⚠️ PALITAN ITO NG IYONG FIREBASE CONFIG KEYS
+    // ✅ Naka-lagay na ang iyong Firebase Config mula sa screenshot
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyD8kZ7TJ8_8h2kZ02MeXU4LHTofzMzy23g",
+      authDomain: "maynilad-calculator.firebaseapp.com",
+      projectId: "maynilad-calculator",
+      storageBucket: "maynilad-calculator.firebasestorage.app",
+      messagingSenderId: "236444081363",
+      appId: "1:236444081363:web:9293f7d7817484be7cc826"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -106,8 +106,8 @@
     const WEEKLY_RATE = 135;
     const START_DATE = new Date("2026-08-30");
     let weeksData = [];
-    let isEditMode = false;         // Global toggle state para sa Edit button sa taas
-    let selectedEditWeek = null;    // Kung anong week ang napili sa radio button
+    let isEditMode = false;         
+    let selectedEditWeek = null;    
 
     function generateDynamicWeeks() {
       let list = [];
@@ -153,7 +153,7 @@
       let currentDynamicWeeks = generateDynamicWeeks();
 
       if (docSnap.exists()) {
-        let savedWeeks = docSnap.data().weeks;
+        let savedWeeks = docSnap.data().weeks || [];
         
         currentDynamicWeeks.forEach(dynW => {
           let found = savedWeeks.find(s => s.weekNum === dynW.weekNum);
@@ -231,7 +231,6 @@
       document.getElementById('receiptDateInput').value = '';
     }
 
-    // Toggle para sa Edit Mode sa taas
     window.toggleGlobalEditMode = function() {
       isEditMode = !isEditMode;
       selectedEditWeek = null;
@@ -246,13 +245,11 @@
       renderTable();
     }
 
-    // Kapag pinindot ang maliit na bilog (radio button)
     window.selectWeekForEdit = function(weekNum) {
       selectedEditWeek = weekNum;
       renderTable();
     }
 
-    // I-save ang in-edit na data at i-reset/balikan ang napili
     window.saveSelectedEdit = async function(weekNum) {
       let w = weeksData.find(item => item.weekNum === weekNum);
       if (!w) return;
@@ -297,9 +294,8 @@
         let row = '';
 
         if (isSelected) {
-          // Kung napili ang linggong ito gamit ang bilog, gawing editable
           row = `
-            <tr class="border-b text-sm bg-blue-50/60">
+            <tr class="border-b text-sm bg-blue-50/65">
               <td class="p-3 text-center">
                 <input type="radio" name="weekEditRadio" checked onclick="selectWeekForEdit(${w.weekNum})" class="w-4 h-4 text-blue-600">
               </td>
@@ -319,7 +315,6 @@
             </tr>
           `;
         } else {
-          // Normal o kaya ay may makikitang bilog kung naka-ON ang edit mode
           let radioCol = isEditMode ? `
             <td class="p-3 text-center">
               <input type="radio" name="weekEditRadio" onclick="selectWeekForEdit(${w.weekNum})" class="w-4 h-4 text-blue-600 cursor-pointer">
