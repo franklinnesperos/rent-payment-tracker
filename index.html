@@ -215,21 +215,20 @@
 
           w.status = w.paidAmount >= w.targetAmount ? 'PAID' : 'PARTIAL';
 
-          // Kalkulahin kung magkano ang napunta sa Cash at Online para sa linggong ito
+          // Siguraduhing hiwalay at malinaw ang Cash at Online nang walang 'undefined'
           let applyCash = Math.min(remainingCash, toApply);
           remainingCash -= applyCash;
           let applyOnline = toApply - applyCash;
 
           if (!w.payments) w.payments = [];
           
-          // I-record nang hiwalay o magkasama nang may tamang label
           let paymentDesc = [];
           if (applyCash > 0) paymentDesc.push(`Cash: $${applyCash}`);
           if (applyOnline > 0) paymentDesc.push(`Online: $${applyOnline}`);
 
           w.payments.push({
             amount: toApply,
-            desc: paymentDesc.join(' | '),
+            desc: paymentDesc.length > 0 ? paymentDesc.join(' | ') : `Payment: $${toApply}`,
             ref: ref,
             receiptDate: receiptDate
           });
@@ -344,7 +343,7 @@
               <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
               <td class="p-3 text-xs text-gray-500">
                 ${w.payments && w.payments.length > 0 
-                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.desc} (Ref: ${p.ref})</span>`).join('<br>') 
+                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.desc || 'Payment'} (Ref: ${p.ref})</span>`).join('<br>') 
                   : '<span class="text-gray-400 italic">No payments yet</span>'}
               </td>
             </tr>
