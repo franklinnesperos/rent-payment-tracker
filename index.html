@@ -12,20 +12,28 @@
 <body class="bg-gray-100 p-6">
   <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
     
-    <!-- Header with Name, Live Sync Indicator & Global Edit Toggle -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
-      <div>
-        <p class="text-xl font-semibold text-blue-900 tracking-wide uppercase mb-1">Franklin Nesperos</p>
-        <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
-        <p class="text-xs text-gray-500 mt-1">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
+    <!-- Header with Centered Name, Live Sync Indicator & Global Edit Toggle -->
+    <div class="border-b pb-4 space-y-3">
+      <!-- Pangalan sa Gitna -->
+      <div class="text-center">
+        <p class="text-xl font-bold text-blue-600 tracking-wide uppercase">Franklin Nesperos</p>
       </div>
-      <div class="flex items-center gap-2">
-        <button id="globalEditBtn" onclick="toggleGlobalEditMode()" class="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition">
-          ✏️ I-edit Mode: OFF
-        </button>
-        <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
+
+      <!-- Title at Buttons sa Ibaba ng Pangalan -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
+          <p class="text-xs text-gray-500 mt-1">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="globalEditBtn" onclick="toggleGlobalEditMode()" class="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition">
+            ✏️ I-edit Mode: OFF
+          </button>
+          <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
+        </div>
       </div>
     </div>
+
 
     <!-- Upload & OCR Section -->
     <div class="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center bg-gray-50">
