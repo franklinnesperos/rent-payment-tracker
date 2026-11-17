@@ -12,11 +12,12 @@
 <body class="bg-gray-100 p-6">
   <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
     
-    <!-- Header with Live Sync Indicator & Global Edit Toggle -->
+    <!-- Header with Name, Live Sync Indicator & Global Edit Toggle -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
       <div>
+        <p class="text-sm font-semibold text-blue-600 tracking-wide uppercase mb-1">Franklin Nesperos</p>
         <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
-        <p class="text-xs text-gray-500">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
+        <p class="text-xs text-gray-500 mt-1">Starts Aug 30, 2026 — Weekly rate: $135 | Auto-unlocks weekly</p>
       </div>
       <div class="flex items-center gap-2">
         <button id="globalEditBtn" onclick="toggleGlobalEditMode()" class="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition">
@@ -84,9 +85,6 @@
     </div>
 
   </div>
-<div class="footer">
-    DEVELOPER : Franklin Nesperos
-</div>
 
   <!-- Firebase JavaScript SDK (Modular v10) -->
   <script type="module">
@@ -158,7 +156,6 @@
       if (docSnap.exists()) {
         let savedWeeks = docSnap.data().weeks || [];
         
-        // Ligtas na pag-merge: Panatilihin ang mga lumang bayad at status base sa weekNum
         currentDynamicWeeks.forEach(dynW => {
           let found = savedWeeks.find(s => s.weekNum === dynW.weekNum);
           if (found) {
@@ -168,16 +165,13 @@
           }
         });
 
-        // Kung may mga lumang week na lumagpas sa dynamic list pero may bayad, huwag burahin
         savedWeeks.forEach(savedW => {
           if (!currentDynamicWeeks.some(d => d.weekNum === savedW.weekNum)) {
             currentDynamicWeeks.push(savedW);
           }
         });
 
-        // I-sort pabalik ayon sa weekNum para laging maayos ang pagkakasunod-sunod
         currentDynamicWeeks.sort((a, b) => a.weekNum - b.weekNum);
-
         weeksData = currentDynamicWeeks;
       } else {
         weeksData = currentDynamicWeeks;
