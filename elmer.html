@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elmer Cabaña - Rent & Payment Tracker</title>
+  <!-- Tailwind CSS para sa Styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tesseract.js para sa Receipt OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body class="bg-gray-100 p-6">
+  <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
+    
+    <!-- Header with Name, Live Sync Indicator & Global Edit Toggle -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-3">
+      <div>
+        <p class="text-sm font-semibold text-blue-600 tracking-wide uppercase mb-1">Elmer Cabaña</p>
+        <h1 class="text-2xl font-bold text-gray-800">Rent & Payment Tracker</h1>
+        <p id="subtitleInfo" class="text-xs text-gray-500 mt-1">Starts Nov 5, 2026 — Weekly rate: $145 | Auto-unlocks weekly</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="globalEditBtn" onclick="toggleGlobalEditMode()" class="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition">
+          ✏️ I-edit Mode: OFF
+        </button>
+        <span id="syncStatus" class="text-xs bg-yellow-100 text-yellow-800 font-semibold px-2.5 py-1.5 rounded">Kumokonekta...</span>
+      </div>
+    </div>
+
+    <!-- Upload & OCR Section -->
+    <div class="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center bg-gray-50">
+      <h2 class="text-lg font-semibold mb-1 text-gray-700">Scan QR / Upload Resibo</h2>
+      <p class="text-xs text-gray-500 mb-3">Awtomatikong babasahin ang Amount, Reference Number, at Petsa/Oras mula sa resibo</p>
+      <input type="file" id="receiptInput" accept="image/*" class="block mx-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+      <div id="ocrStatus" class="text-sm text-blue-600 font-medium mt-3"></div>
+    </div>
+
+    <!-- Payment Entry Form -->
+    <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-lg space-y-3">
+      <h3 class="font-semibold text-gray-700">Mag-log ng Bayad</h3>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Ref Number / Note</label>
+          <input type="text" id="refNum" class="w-full border p-2 rounded bg-white text-sm" placeholder="e.g. room rent">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Petsa ng Resibo (Receipt Date)</label>
+          <input type="text" id="receiptDateInput" class="w-full border p-2 rounded bg-white text-sm" placeholder="e.g. 11 Nov 2026">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Cash Amount ($)</label>
+          <input type="number" id="cashAmount" value="0" min="0" step="any" class="w-full border p-2 rounded bg-white text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Online / Transfer ($)</label>
+          <input type="number" id="onlineAmount" value="0" min="0" step="any" class="w-full border p-2 rounded bg-white text-sm">
+        </div>
+      </div>
+      <button id="btnSubmit" onclick="processPayment()" class="w-full bg-blue-600 text-white py-2.5 rounded font-semibold hover:bg-blue-700 transition">
+        I-save at I-sync ang Bayad
+      </button>
+    </div>
+
+    <!-- Schedule & Real-time Records Table -->
+    <div>
+      <h2 class="text-xl font-bold mb-3 text-gray-800">Weekly Schedule & Live Status</h2>
+      <div class="overflow-x-auto rounded-lg border border-gray-200">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-200 text-gray-700 text-xs uppercase tracking-wider">
+              <th id="editHeader" class="p-3 hidden text-center">Piliin</th>
+              <th class="p-3">Week</th>
+              <th class="p-3">Petsa (Date Range)</th>
+              <th id="rateHeader" class="p-3">Kailangan ($145)</th>
+              <th class="p-3">Naibayad</th>
+              <th class="p-3">Status</th>
+              <th class="p-3">Details / History</th>
+            </tr>
+          </thead>
+          <tbody id="scheduleBody" class="divide-y divide-gray-200 bg-white">
+            <!-- Dynamic rows will render here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Firebase JavaScript SDK (Modular v10) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD8kZ7TJ8_8h2kZ02MeXU4LHTofzMzy23g",
+      authDomain: "maynilad-calculator.firebaseapp.com",
+      projectId: "maynilad-calculator",
+      storageBucket: "maynilad-calculator.firebasestorage.app",
+      messagingSenderId: "236444081363",
+      appId: "1:236444081363:web:9293f7d7817484be7cc826"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const WEEKLY_RATE = 145; // $145 lingguhang bayad para kay Elmer
+    const START_DATE = new Date(2026, 10, 5); // Nov 5, 2026 (Month 10 = November)
+
+    document.getElementById('subtitleInfo').innerText = `Starts Nov 5, 2026 — Weekly rate: $${WEEKLY_RATE} | Auto-unlocks weekly`;
+    document.getElementById('rateHeader').innerText = `Kailangan ($${WEEKLY_RATE})`;
+
+    let weeksData = [];
+    let isEditMode = false;         
+    let selectedEditWeek = null;    
+
+    function generateDynamicWeeks() {
+      let list = [];
+      let currentDate = new Date(START_DATE);
+      let now = new Date();
+      let weekNum = 1;
+
+      while (true) {
+        let endDate = new Date(currentDate);
+        endDate.setDate(endDate.getDate() + 6);
+
+        list.push({
+          weekNum: weekNum,
+          startDate: formatDate(currentDate),
+          endDate: formatDate(endDate),
+          targetAmount: WEEKLY_RATE,
+          paidAmount: 0,
+          status: 'UNPAID',
+          payments: []
+        });
+
+        let nextDate = new Date(currentDate);
+        nextDate.setDate(nextDate.getDate() + 7);
+
+        if (nextDate > now) {
+          break;
+        }
+
+        currentDate = nextDate;
+        weekNum++;
+      }
+      return list;
+    }
+
+    function formatDate(d) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // Hiwalay na collection para kay Elmer sa Firebase
+    const docRef = doc(db, "elmer_rent_tracker", "master_records");
+
+    onSnapshot(docRef, (docSnap) => {
+      const syncStatus = document.getElementById('syncStatus');
+      let currentDynamicWeeks = generateDynamicWeeks();
+
+      if (docSnap.exists()) {
+        let savedWeeks = docSnap.data().weeks || [];
+        
+        currentDynamicWeeks.forEach(dynW => {
+          let found = savedWeeks.find(s => s.weekNum === dynW.weekNum);
+          if (found) {
+            dynW.paidAmount = found.paidAmount || 0;
+            dynW.status = found.status || 'UNPAID';
+            dynW.payments = found.payments || [];
+          }
+        });
+
+        savedWeeks.forEach(savedW => {
+          if (!currentDynamicWeeks.some(d => d.weekNum === savedW.weekNum)) {
+            currentDynamicWeeks.push(savedW);
+          }
+        });
+
+        currentDynamicWeeks.sort((a, b) => a.weekNum - b.weekNum);
+        weeksData = currentDynamicWeeks;
+      } else {
+        weeksData = currentDynamicWeeks;
+        saveToFirebase(weeksData);
+      }
+
+      renderTable();
+      syncStatus.innerText = "Live Synced";
+      syncStatus.className = "text-xs bg-green-100 text-green-800 font-semibold px-2.5 py-1.5 rounded";
+    }, (error) => {
+      console.error("Firestore Error:", error);
+      const syncStatus = document.getElementById('syncStatus');
+      syncStatus.innerText = "Sync Error";
+      syncStatus.className = "text-xs bg-red-100 text-red-800 font-semibold px-2.5 py-1.5 rounded";
+    });
+
+    async function saveToFirebase(data) {
+      try {
+        await setDoc(doc(db, "elmer_rent_tracker", "master_records"), { weeks: data });
+      } catch (e) {
+        alert("Error saving data to Firebase.");
+      }
+    }
+
+    window.processPayment = async function() {
+      const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
+      const online = parseFloat(document.getElementById('onlineAmount').value) || 0;
+      const ref = document.getElementById('refNum').value.trim() || 'N/A';
+      const receiptDate = document.getElementById('receiptDateInput').value.trim() || new Date().toLocaleString();
+      
+      let totalPayment = cash + online;
+      if (totalPayment <= 0) return alert("Maglagay ng halaga ng bayad.");
+
+      let remainingPayment = totalPayment;
+      let remainingCash = cash;
+      let remainingOnline = online;
+
+      for (let w of weeksData) {
+        if (remainingPayment <= 0) break;
+
+        let needed = w.targetAmount - w.paidAmount;
+        if (needed > 0) {
+          let toApply = Math.min(needed, remainingPayment);
+          w.paidAmount += toApply;
+          remainingPayment -= toApply;
+
+          w.status = w.paidAmount >= w.targetAmount ? 'PAID' : 'PARTIAL';
+
+          let applyCash = Math.min(remainingCash, toApply);
+          remainingCash -= applyCash;
+          let applyOnline = toApply - applyCash;
+
+          if (!w.payments) w.payments = [];
+          
+          let paymentDesc = [];
+          if (applyCash > 0) paymentDesc.push(`Cash: $${applyCash}`);
+          if (applyOnline > 0) paymentDesc.push(`Online: $${applyOnline}`);
+
+          w.payments.push({
+            amount: toApply,
+            desc: paymentDesc.length > 0 ? paymentDesc.join(' | ') : `Payment: $${toApply}`,
+            ref: ref,
+            receiptDate: receiptDate
+          });
+        }
+      }
+
+      await saveToFirebase(weeksData);
+
+      document.getElementById('cashAmount').value = 0;
+      document.getElementById('onlineAmount').value = 0;
+      document.getElementById('refNum').value = '';
+      document.getElementById('receiptDateInput').value = '';
+    }
+
+    window.toggleGlobalEditMode = function() {
+      isEditMode = !isEditMode;
+      selectedEditWeek = null;
+      let btn = document.getElementById('globalEditBtn');
+      if (isEditMode) {
+        btn.innerText = "✏️ I-edit Mode: ON";
+        btn.className = "bg-amber-600 text-white border border-amber-700 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-700 transition";
+      } else {
+        btn.innerText = "✏️ I-edit Mode: OFF";
+        btn.className = "bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold px-3 py-1.5 rounded hover:bg-amber-200 transition";
+      }
+      renderTable();
+    }
+
+    window.selectWeekForEdit = function(weekNum) {
+      selectedEditWeek = weekNum;
+      renderTable();
+    }
+
+    window.saveSelectedEdit = async function(weekNum) {
+      let w = weeksData.find(item => item.weekNum === weekNum);
+      if (!w) return;
+
+      const newPaid = parseFloat(document.getElementById(`editPaid_${weekNum}`).value) || 0;
+      const newNote = document.getElementById(`editNote_${weekNum}`).value.trim();
+
+      w.paidAmount = newPaid;
+      w.status = newPaid >= w.targetAmount ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
+      
+      if (newPaid === 0) {
+        w.payments = [];
+      } else {
+        w.payments = [{
+          amount: newPaid,
+          desc: `Manual Edit: $${newPaid}`,
+          ref: newNote || 'Edited record',
+          receiptDate: new Date().toLocaleDateString()
+        }];
+      }
+
+      selectedEditWeek = null;
+      await saveToFirebase(weeksData);
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('scheduleBody');
+      const editHeader = document.getElementById('editHeader');
+      tbody.innerHTML = '';
+
+      if (isEditMode) {
+        editHeader.classList.remove('hidden');
+      } else {
+        editHeader.classList.add('hidden');
+      }
+
+      weeksData.forEach(w => {
+        let isSelected = (isEditMode && selectedEditWeek === w.weekNum);
+        let badgeColor = w.status === 'PAID' ? 'bg-green-100 text-green-800' :
+                         w.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+
+        let row = '';
+
+        if (isSelected) {
+          row = `
+            <tr class="border-b text-sm bg-blue-50/65">
+              <td class="p-3 text-center">
+                <input type="radio" name="weekEditRadio" checked onclick="selectWeekForEdit(${w.weekNum})" class="w-4 h-4 text-blue-600">
+              </td>
+              <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
+              <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
+              <td class="p-3 text-gray-700">$${w.targetAmount}</td>
+              <td class="p-3">
+                <input type="number" id="editPaid_${w.weekNum}" value="${w.paidAmount}" min="0" max="${w.targetAmount}" class="w-24 border p-1 rounded bg-white text-sm font-bold text-blue-600">
+              </td>
+              <td class="p-3 text-xs italic text-gray-500">Auto-status</td>
+              <td class="p-3">
+                <div class="flex items-center gap-2">
+                  <input type="text" id="editNote_${w.weekNum}" value="${w.payments && w.payments.length > 0 ? w.payments[0].ref : ''}" placeholder="Note / Ref" class="w-full border p-1 rounded bg-white text-xs">
+                  <button onclick="saveSelectedEdit(${w.weekNum})" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 whitespace-nowrap">💾 I-save</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        } else {
+          let radioCol = isEditMode ? `
+            <td class="p-3 text-center">
+              <input type="radio" name="weekEditRadio" onclick="selectWeekForEdit(${w.weekNum})" class="w-4 h-4 text-blue-600 cursor-pointer">
+            </td>
+          ` : '';
+
+          row = `
+            <tr class="border-b text-sm hover:bg-gray-50">
+              ${radioCol}
+              <td class="p-3 font-semibold text-gray-800">Week ${w.weekNum}</td>
+              <td class="p-3 text-gray-600">${w.startDate} - ${w.endDate}</td>
+              <td class="p-3 text-gray-700">$${w.targetAmount}</td>
+              <td class="p-3 font-bold text-blue-600">$${w.paidAmount}</td>
+              <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">${w.status}</span></td>
+              <td class="p-3 text-xs text-gray-500">
+                ${w.payments && w.payments.length > 0 
+                  ? w.payments.map(p => `<span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mb-1 border"><b>${p.receiptDate || ''}</b> | ${p.desc || 'Payment'} (Ref: ${p.ref})</span>`).join('<br>') 
+                  : '<span class="text-gray-400 italic">No payments yet</span>'}
+              </td>
+            </tr>
+          `;
+        }
+        tbody.innerHTML += row;
+      });
+    }
+
+    document.getElementById('receiptInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const status = document.getElementById('ocrStatus');
+      status.innerText = "Binabasa ang resibo... Paki-hintay.";
+
+      Tesseract.recognize(file, 'eng').then(({ data: { text } }) => {
+        status.innerText = "Natapos ang pag-scan!";
+
+        let amountVal = 0;
+        const amountRegex = /Amount[\s\n]*\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
+        const matchAmount = text.match(amountRegex);
+
+        if (matchAmount && matchAmount[1]) {
+          amountVal = parseFloat(matchAmount[1].replace(/,/g, ''));
+        } else {
+          const fallbackMatch = text.match(/\$(\d{2,5}(?:\.\d{2})?)/);
+          if (fallbackMatch) amountVal = parseFloat(fallbackMatch[1]);
+        }
+
+        let refVal = "";
+        const refMatch = text.match(/(reference|ref)[\s\n:]*([A-Za-z0-9\s]+)/i);
+        if (refMatch && refMatch[2]) refVal = refMatch[2].split('\n')[0].trim();
+
+        let dateVal = "";
+        const dateMatch = text.match(/(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}/i);
+        if (dateMatch) {
+          dateVal = dateMatch[0];
+        } else {
+          const fallbackDate = text.match(/\b\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i);
+          if (fallbackDate) dateVal = fallbackDate[0];
+        }
+
+        if (amountVal > 0) document.getElementById('onlineAmount').value = amountVal;
+        if (refVal) document.getElementById('refNum').value = refVal;
+        if (dateVal) document.getElementById('receiptDateInput').value = dateVal;
+
+        status.innerText = `✅ Tagumpay! Nabasa ang Amount: $${amountVal} | Petsa: ${dateVal || 'N/A'}`;
+      }).catch(err => {
+        status.innerText = "❌ Error sa pag-read ng resibo.";
+      });
+    });
+  </script>
+</body>
+</html>
