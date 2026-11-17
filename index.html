@@ -155,19 +155,27 @@
       if (docSnap.exists()) {
         let savedWeeks = docSnap.data().weeks || [];
         
+        // Ligtas na pag-merge: Panatilihin ang mga lumang bayad at status base sa weekNum
         currentDynamicWeeks.forEach(dynW => {
           let found = savedWeeks.find(s => s.weekNum === dynW.weekNum);
           if (found) {
-            dynW.paidAmount = found.paidAmount;
-            dynW.status = found.status;
+            dynW.paidAmount = found.paidAmount || 0;
+            dynW.status = found.status || 'UNPAID';
             dynW.payments = found.payments || [];
           }
         });
+
+        // Kung may mga lumang week na lumagpas sa dynamic list pero may bayad, huwag burahin
+        savedWeeks.forEach(savedW => {
+          if (!currentDynamicWeeks.some(d => d.weekNum === savedW.weekNum)) {
+            currentDynamicWeeks.push(savedW);
+          }
+        });
+
+        // I-sort pabalik ayon sa weekNum para laging maayos ang pagkakasunod-sunod
+        currentDynamicWeeks.sort((a, b) => a.weekNum - b.weekNum);
+
         weeksData = currentDynamicWeeks;
-        
-        if (savedWeeks.length < weeksData.length) {
-          saveToFirebase(weeksData);
-        }
       } else {
         weeksData = currentDynamicWeeks;
         saveToFirebase(weeksData);
@@ -215,7 +223,6 @@
 
           w.status = w.paidAmount >= w.targetAmount ? 'PAID' : 'PARTIAL';
 
-          // Siguraduhing hiwalay at malinaw ang Cash at Online nang walang 'undefined'
           let applyCash = Math.min(remainingCash, toApply);
           remainingCash -= applyCash;
           let applyOnline = toApply - applyCash;
