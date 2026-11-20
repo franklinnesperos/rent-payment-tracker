@@ -78,7 +78,7 @@
               <th id="editHeader" class="p-3 hidden text-center">Piliin</th>
               <th class="p-3">Week</th>
               <th class="p-3">Petsa (Date Range)</th>
-              <th id="rateHeader" class="p-3">Kailangan ($145)</th>
+              <th id="rateHeader" class="p-3">Kailangan ($135)</th>
               <th class="p-3">Naibayad</th>
               <th class="p-3">Status</th>
               <th class="p-3">Details / History</th>
@@ -115,7 +115,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const WEEKLY_RATE = 145;
+    const WEEKLY_RATE = 135;
     const START_DATE = new Date(2026, 10, 5); // Nov 5, 2026 (Month 10 = November)
 
     document.getElementById('subtitleInfo').innerText = `Starts Nov 5, 2026 — Weekly rate: $${WEEKLY_RATE} | Auto-unlocks weekly`;
